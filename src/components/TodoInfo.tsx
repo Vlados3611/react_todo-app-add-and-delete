@@ -1,7 +1,6 @@
 import React, {
   useState,
   useEffect,
-  useCallback,
   useContext,
   useRef,
   ChangeEvent,
@@ -51,7 +50,7 @@ export const TodoInfo: React.FC<Props> = React.memo(
       setInputTitle(event.target.value);
     };
 
-    const handleComplete = useCallback(async () => {
+    const handleComplete = async () => {
       if (!isEdited) {
         try {
           setLoadingIds((prevState: number[]) => (
@@ -68,7 +67,7 @@ export const TodoInfo: React.FC<Props> = React.memo(
           setLoadingIds([]);
         }
       }
-    }, [isEdited]);
+    };
 
     const handleCancel = () => {
       setEdited(false);
