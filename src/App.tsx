@@ -361,12 +361,9 @@ export const App: React.FC = () => {
 
           <TodoList />
 
-          {/* Hide the footer if there are no todos */}
           {todos.length && <TodoFilter />}
         </div>
 
-        {/* Notification is shown in case of any error */}
-        {/* Add the 'hidden' class to hide the message smoothly */}
         {notificationList
           .slice(0, 3)
           .map((notification: Notification) => (
