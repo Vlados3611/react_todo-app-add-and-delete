@@ -1,24 +1,394 @@
 /* eslint-disable max-len */
 /* eslint-disable jsx-a11y/control-has-associated-label */
-import React from 'react';
-import { UserWarning } from './UserWarning';
+import React, {
+  useState,
+  useEffect,
+  useMemo,
+  useCallback,
+} from 'react';
+import { TodoList } from './components/TodoList';
 
-const USER_ID = 0;
+import { Todo } from './types/Todo';
+import { FilterType } from './enums/SortType';
+import { Notification } from './types/Notification';
+
+import { TodoFilter } from './components/TodoFilter';
+import { TodoContext } from './TodoContext';
+import { TodoSearch } from './components/TodoSearch';
+import { TodoNotification } from './components/TodoNotification';
+
+import { UserWarning } from './UserWarning';
+import {
+  getTodos,
+  setTodosToServer,
+  deleteTodoFromServer,
+  updateTodoByCompleted,
+} from './api/todos';
+
+const USER_ID = 10562;
 
 export const App: React.FC = () => {
+  const [todos, setTodos] = useState<Todo[]>([]);
+  const [sortType, setSortType] = useState<FilterType>(FilterType.All);
+  const [notificationList, setNotificationList] = useState<Notification[]>([]);
+  const [isLoaded, setIsLoaded] = useState<boolean>(true);
+  const [creating, setCreating] = useState<boolean>(false);
+  const [creatingTodo, setCreatingTodo] = useState<string>('');
+  const [tempTodo, setTempTodo] = useState<Todo | null>(null);
+  const [loadingIds, setLoadingIds] = useState<number[]>([]);
+
+  const setErrorToList = (reason: string) => {
+    const getId: (number[] | number) = (
+      notificationList.length > 0
+        ? Math.max(...notificationList.map((error) => error.id))
+        : 0
+    );
+
+    const newError: Notification = {
+      id: getId + 1,
+      reason,
+      hidden: false,
+    };
+
+    setNotificationList((prevState: Notification[]) => (
+      [...prevState, newError]
+    ));
+  };
+
+  const loadTodos = async () => {
+    try {
+      const foundTodos = await getTodos(USER_ID);
+
+      setTodos(foundTodos);
+    } catch {
+      const getId = (
+        notificationList.length > 0
+          ? Math.max(...notificationList.map(
+            (notification) => notification.id,
+          ))
+          : 0
+      );
+
+      const newError = {
+        id: getId + 1,
+        reason: 'Can`t load todos',
+        hidden: false,
+      };
+
+      setNotificationList((prevState: Notification[]) => (
+        [...prevState, newError]
+      ));
+    }
+  };
+
+  const onSubmit = useCallback(async (title: string) => {
+    setIsLoaded(false);
+    setCreating(true);
+    setCreatingTodo(title);
+    try {
+      const newTodo = {
+        userId: USER_ID,
+        title,
+        completed: false,
+      };
+
+      setTempTodo({
+        id: 0,
+        ...newTodo,
+      });
+
+      setLoadingIds([0]);
+
+      const todo = await setTodosToServer(newTodo);
+
+      setTodos(
+        (prevState: Todo[]) => [...prevState, todo],
+      );
+
+      setIsLoaded(true);
+      setCreating(false);
+    } catch {
+      setIsLoaded(false);
+      setCreating(false);
+      setCreatingTodo('');
+      setTempTodo(null);
+      throw new Error();
+    } finally {
+      setTempTodo(null);
+      setLoadingIds([]);
+    }
+  }, [todos]);
+
+  const onDelete = async (todoId: number) => {
+    try {
+      setLoadingIds((prevState: number[]) => (
+        [...prevState, todoId]
+      ));
+
+      await deleteTodoFromServer(todoId);
+
+      setTodos(prevState => prevState.filter((todo) => (
+        todo.id !== todoId
+      )));
+    } catch {
+      setErrorToList('Can`t delete todo');
+    } finally {
+      setLoadingIds([]);
+    }
+  };
+
+  const onComplete = (id: number, completed: boolean) => {
+    setTodos((prevState: Todo[]) => (
+      prevState.map((todo: Todo) => {
+        if (todo.id !== id) {
+          return todo;
+        }
+
+        return { ...todo, completed };
+      })
+    ));
+  };
+
+  const onEdit = (todoId: number, title: string) => {
+    setTodos((prevState: Todo[]) => (
+      prevState.map(
+        (todo: Todo) => {
+          if (todo.id !== todoId) {
+            return todo;
+          }
+
+          return { ...todo, title };
+        },
+      )
+    ));
+  };
+
+  const clearAllCompleted = async (todosList: Todo[]) => {
+    try {
+      const todosCompleted = todosList.filter(
+        (todo: Todo) => todo.completed,
+      );
+
+      const foundTodosId = todosCompleted.map(
+        (todo: Todo) => todo.id,
+      );
+
+      setLoadingIds(foundTodosId);
+
+      await Promise.all(todosCompleted.map(
+        (todo: Todo) => deleteTodoFromServer(todo.id),
+      ));
+
+      setTodos(prevState => (prevState.filter(
+        (todo: Todo) => !foundTodosId.includes(todo.id),
+      )));
+    } catch {
+      setErrorToList('Can`t clear completed');
+    } finally {
+      setLoadingIds([]);
+    }
+  };
+
+  const changeAllTodos = async (todoList: Todo[]) => {
+    const filteredTodos = todoList.filter((todo: Todo) => (
+      todo.completed
+    ));
+
+    if (filteredTodos.length === todoList.length) {
+      try {
+        setLoadingIds(filteredTodos.map((todo: Todo) => (
+          todo.id
+        )));
+
+        await Promise.all(filteredTodos.map((todo: Todo) => (
+          updateTodoByCompleted(todo.id, false)
+        )));
+
+        setTodos((prevState: Todo[]) => (
+          prevState.map((todo) => ({
+            ...todo,
+            completed: false,
+          }))
+        ));
+      } catch {
+        setErrorToList('Can`t remove all');
+      } finally {
+        setLoadingIds([]);
+      }
+    } else {
+      try {
+        setLoadingIds(todoList
+          .filter((todo: Todo) => (
+            !todo.completed
+          ))
+          .map((todo: Todo) => (
+            todo.id
+          )));
+
+        await Promise.all(todoList.map((todo: Todo) => {
+          if (todo.completed) {
+            return todo;
+          }
+
+          return updateTodoByCompleted(todo.id, true);
+        }));
+
+        setTodos((prevState: Todo[]) => (
+          prevState.map((todo) => {
+            if (todo.completed) {
+              return todo;
+            }
+
+            return { ...todo, completed: true };
+          })
+        ));
+      } catch {
+        setErrorToList('Can`t complete all');
+      } finally {
+        setLoadingIds([]);
+      }
+    }
+  };
+
+  const getFilteredTodos = useCallback((
+    todosList: Todo[],
+    sortBy: FilterType,
+  ) => {
+    return [...todosList].filter((todo) => {
+      switch (sortBy) {
+        case FilterType.Active:
+          return !todo.completed;
+
+        case FilterType.Completed:
+          return todo.completed;
+
+        default:
+          return true;
+      }
+    });
+  }, [todos, sortType]);
+
+  const removeErrorByClick = useCallback((errorId: number) => {
+    setTimeout(() => {
+      setNotificationList((prevState: Notification[]) => (
+        prevState.map((error: Notification) => {
+          if (error.id !== errorId) {
+            return error;
+          }
+
+          return { ...error, hidden: true };
+        })
+      ));
+
+      setTimeout(() => {
+        setNotificationList((prevState: Notification[]) => (
+          prevState.filter((notification: Notification) => (
+            notification.id !== errorId
+          ))
+        ));
+      }, 500);
+    }, 0);
+  }, [notificationList]);
+
+  const removeErrorByDefault = useCallback(() => {
+    const errorId = notificationList[0].id;
+
+    setTimeout(() => {
+      setNotificationList((prevState: Notification[]) => (
+        prevState.map((error: Notification) => {
+          if (error.id !== errorId) {
+            return error;
+          }
+
+          return { ...error, hidden: true };
+        })
+      ));
+
+      setTimeout(() => {
+        setNotificationList(prevState => (
+          prevState.filter((error) => error.id !== errorId)
+        ));
+      }, 500);
+    }, 2500);
+  }, [notificationList]);
+
+  const setActiveTodos = useCallback(() => {
+    setSortType(FilterType.Active);
+  }, []);
+
+  const setCompletedTodos = useCallback(() => {
+    setSortType(FilterType.Completed);
+  }, []);
+
+  const setAllTodos = useCallback(() => {
+    setSortType(FilterType.All);
+  }, []);
+
+  const filteredTodos = useMemo(() => {
+    return getFilteredTodos(todos, sortType);
+  }, [todos, sortType]);
+
+  useEffect(() => {
+    loadTodos();
+  }, []);
+
   if (!USER_ID) {
     return <UserWarning />;
   }
 
-  return (
-    <section className="section container">
-      <p className="title is-4">
-        Copy all you need from the prev task:
-        <br />
-        <a href="https://github.com/mate-academy/react_todo-app-loading-todos#react-todo-app-load-todos">React Todo App - Load Todos</a>
-      </p>
+  if (notificationList.length > 0) {
+    removeErrorByDefault();
+  }
 
-      <p className="subtitle">Styles are already copied</p>
-    </section>
+  return (
+    <TodoContext.Provider value={{
+      todos,
+      filteredTodos,
+      tempTodo,
+      sortType,
+      isLoaded,
+      loadingIds,
+      creating,
+      creatingTodo,
+      onSubmit,
+      onDelete,
+      onComplete,
+      onEdit,
+      setAllTodos,
+      setLoadingIds,
+      setActiveTodos,
+      setCompletedTodos,
+      removeErrorByClick,
+      clearAllCompleted,
+      changeAllTodos,
+      setErrorToList,
+    }}
+    >
+      <div className="todoapp">
+        <h1 className="todoapp__title">todos</h1>
+
+        <div className="todoapp__content">
+          <header className="todoapp__header">
+            <TodoSearch />
+          </header>
+
+          <TodoList />
+
+          {/* Hide the footer if there are no todos */}
+          {todos.length && <TodoFilter />}
+        </div>
+
+        {/* Notification is shown in case of any error */}
+        {/* Add the 'hidden' class to hide the message smoothly */}
+        {notificationList
+          .slice(0, 3)
+          .map((notification: Notification) => (
+            <TodoNotification
+              key={notification.id}
+              notification={notification}
+            />
+          ))}
+      </div>
+    </TodoContext.Provider>
   );
 };
