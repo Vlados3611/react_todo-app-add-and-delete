@@ -41,8 +41,6 @@ export const TodoNotification: React.FC<Props> = React.memo(
         >
           x
         </button>
-
-        {/* show only one message at a time */}
         {reason}
       </div>
     );

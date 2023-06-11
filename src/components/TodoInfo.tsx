@@ -1,6 +1,7 @@
 import React, {
   useState,
   useEffect,
+  useCallback,
   useContext,
   useRef,
   ChangeEvent,
@@ -34,6 +35,7 @@ export const TodoInfo: React.FC<Props> = React.memo(
     const inputField = useRef<HTMLInputElement>(null);
 
     const isDone = inputTitle.trim().length < 1;
+    const isChanged = title === inputTitle;
 
     const {
       filteredTodos,
@@ -49,7 +51,7 @@ export const TodoInfo: React.FC<Props> = React.memo(
       setInputTitle(event.target.value);
     };
 
-    const handleComplete = async () => {
+    const handleComplete = useCallback(async () => {
       if (!isEdited) {
         try {
           setLoadingIds((prevState: number[]) => (
@@ -66,7 +68,7 @@ export const TodoInfo: React.FC<Props> = React.memo(
           setLoadingIds([]);
         }
       }
-    };
+    }, [isEdited]);
 
     const handleCancel = () => {
       setEdited(false);
@@ -74,7 +76,7 @@ export const TodoInfo: React.FC<Props> = React.memo(
     };
 
     const handleSubmit = async () => {
-      if (title === inputTitle) {
+      if (isChanged) {
         setEdited(false);
       } else if (!isDone) {
         try {
@@ -168,7 +170,6 @@ export const TodoInfo: React.FC<Props> = React.memo(
               )
           }
 
-          {/* Remove button appears only on hover */}
           {
             !isEdited && (
               <button
@@ -181,7 +182,6 @@ export const TodoInfo: React.FC<Props> = React.memo(
             )
           }
 
-          {/* overlay will cover the todo while it is being updated */}
           <div
             className={classNames(
               'modal overlay',

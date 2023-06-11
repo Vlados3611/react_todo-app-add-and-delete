@@ -18,22 +18,20 @@ import { TodoSearch } from './components/TodoSearch';
 import { TodoNotification } from './components/TodoNotification';
 
 import { UserWarning } from './UserWarning';
+
 import {
+  USER_ID,
   getTodos,
   setTodosToServer,
   deleteTodoFromServer,
   updateTodoByCompleted,
 } from './api/todos';
 
-const USER_ID = 10562;
-
 export const App: React.FC = () => {
   const [todos, setTodos] = useState<Todo[]>([]);
   const [sortType, setSortType] = useState<FilterType>(FilterType.All);
   const [notificationList, setNotificationList] = useState<Notification[]>([]);
   const [isLoaded, setIsLoaded] = useState<boolean>(true);
-  const [creating, setCreating] = useState<boolean>(false);
-  const [creatingTodo, setCreatingTodo] = useState<string>('');
   const [tempTodo, setTempTodo] = useState<Todo | null>(null);
   const [loadingIds, setLoadingIds] = useState<number[]>([]);
 
@@ -61,43 +59,25 @@ export const App: React.FC = () => {
 
       setTodos(foundTodos);
     } catch {
-      const getId = (
-        notificationList.length > 0
-          ? Math.max(...notificationList.map(
-            (notification) => notification.id,
-          ))
-          : 0
-      );
-
-      const newError = {
-        id: getId + 1,
-        reason: 'Can`t load todos',
-        hidden: false,
-      };
-
-      setNotificationList((prevState: Notification[]) => (
-        [...prevState, newError]
-      ));
+      setErrorToList('Can`t load todos');
     }
   };
 
   const onSubmit = useCallback(async (title: string) => {
     setIsLoaded(false);
-    setCreating(true);
-    setCreatingTodo(title);
     try {
       const newTodo = {
+        id: 0,
         userId: USER_ID,
         title,
         completed: false,
       };
 
       setTempTodo({
-        id: 0,
         ...newTodo,
       });
 
-      setLoadingIds([0]);
+      setLoadingIds(prevState => [...prevState, newTodo.id]);
 
       const todo = await setTodosToServer(newTodo);
 
@@ -106,12 +86,8 @@ export const App: React.FC = () => {
       );
 
       setIsLoaded(true);
-      setCreating(false);
     } catch {
       setIsLoaded(false);
-      setCreating(false);
-      setCreatingTodo('');
-      setTempTodo(null);
       throw new Error();
     } finally {
       setTempTodo(null);
@@ -119,25 +95,30 @@ export const App: React.FC = () => {
     }
   }, [todos]);
 
-  const onDelete = async (todoId: number) => {
-    try {
-      setLoadingIds((prevState: number[]) => (
-        [...prevState, todoId]
-      ));
+  const onDelete = useCallback(
+    async (todoId: number) => {
+      try {
+        setLoadingIds((prevState: number[]) => (
+          [...prevState, todoId]
+        ));
 
-      await deleteTodoFromServer(todoId);
+        await deleteTodoFromServer(todoId);
 
-      setTodos(prevState => prevState.filter((todo) => (
-        todo.id !== todoId
-      )));
-    } catch {
-      setErrorToList('Can`t delete todo');
-    } finally {
-      setLoadingIds([]);
-    }
-  };
+        setTodos(prevState => prevState.filter((todo) => (
+          todo.id !== todoId
+        )));
+      } catch {
+        setErrorToList('Can`t delete todo');
+      } finally {
+        setLoadingIds([]);
+      }
+    }, [todos],
+  );
 
-  const onComplete = (id: number, completed: boolean) => {
+  const onComplete = useCallback((
+    id: number,
+    completed: boolean,
+  ) => {
     setTodos((prevState: Todo[]) => (
       prevState.map((todo: Todo) => {
         if (todo.id !== id) {
@@ -147,9 +128,12 @@ export const App: React.FC = () => {
         return { ...todo, completed };
       })
     ));
-  };
+  }, []);
 
-  const onEdit = (todoId: number, title: string) => {
+  const onEdit = useCallback((
+    todoId: number,
+    title: string,
+  ) => {
     setTodos((prevState: Todo[]) => (
       prevState.map(
         (todo: Todo) => {
@@ -161,9 +145,11 @@ export const App: React.FC = () => {
         },
       )
     ));
-  };
+  }, []);
 
-  const clearAllCompleted = async (todosList: Todo[]) => {
+  const clearAllCompleted = useCallback(async (
+    todosList: Todo[],
+  ) => {
     try {
       const todosCompleted = todosList.filter(
         (todo: Todo) => todo.completed,
@@ -187,68 +173,81 @@ export const App: React.FC = () => {
     } finally {
       setLoadingIds([]);
     }
-  };
+  }, []);
 
-  const changeAllTodos = async (todoList: Todo[]) => {
+  const changeAllTodos = useCallback(async (
+    todoList: Todo[],
+  ) => {
     const filteredTodos = todoList.filter((todo: Todo) => (
       todo.completed
     ));
 
-    if (filteredTodos.length === todoList.length) {
-      try {
-        setLoadingIds(filteredTodos.map((todo: Todo) => (
-          todo.id
-        )));
+    const isAllCompleted = (
+      filteredTodos.length === todoList.length
+    );
 
-        await Promise.all(filteredTodos.map((todo: Todo) => (
-          updateTodoByCompleted(todo.id, false)
-        )));
+    try {
+      setLoadingIds(
+        isAllCompleted
+          ? (
+            filteredTodos.map((todo: Todo) => (
+              todo.id
+            ))
+          ) : (
+            todoList
+              .filter((todo: Todo) => (
+                !todo.completed
+              ))
+              .map((todo: Todo) => (
+                todo.id
+              ))
+          ),
+      );
 
-        setTodos((prevState: Todo[]) => (
-          prevState.map((todo) => ({
-            ...todo,
-            completed: false,
-          }))
-        ));
-      } catch {
-        setErrorToList('Can`t remove all');
-      } finally {
-        setLoadingIds([]);
-      }
-    } else {
-      try {
-        setLoadingIds(todoList
-          .filter((todo: Todo) => (
-            !todo.completed
-          ))
-          .map((todo: Todo) => (
-            todo.id
-          )));
+      await Promise.all(
+        isAllCompleted
+          ? (
+            filteredTodos.map((todo: Todo) => (
+              updateTodoByCompleted(todo.id, false)
+            ))
+          ) : (
+            todoList.map((todo: Todo) => {
+              if (todo.completed) {
+                return todo;
+              }
 
-        await Promise.all(todoList.map((todo: Todo) => {
-          if (todo.completed) {
-            return todo;
-          }
+              return updateTodoByCompleted(todo.id, true);
+            })
+          ),
+      );
 
-          return updateTodoByCompleted(todo.id, true);
-        }));
+      setTodos((prevState: Todo[]) => (
+        isAllCompleted
+          ? (
+            prevState.map((todo) => ({
+              ...todo,
+              completed: false,
+            }))
+          ) : (
+            prevState.map((todo) => {
+              if (todo.completed) {
+                return todo;
+              }
 
-        setTodos((prevState: Todo[]) => (
-          prevState.map((todo) => {
-            if (todo.completed) {
-              return todo;
-            }
-
-            return { ...todo, completed: true };
-          })
-        ));
-      } catch {
-        setErrorToList('Can`t complete all');
-      } finally {
-        setLoadingIds([]);
-      }
+              return { ...todo, completed: true };
+            })
+          )
+      ));
+    } catch {
+      setErrorToList(
+        isAllCompleted
+          ? 'Can`t remove all'
+          : 'Can`t complete all',
+      );
+    } finally {
+      setLoadingIds([]);
     }
-  };
+  }, []);
 
   const getFilteredTodos = useCallback((
     todosList: Todo[],
@@ -268,7 +267,11 @@ export const App: React.FC = () => {
     });
   }, [todos, sortType]);
 
-  const removeErrorByClick = useCallback((errorId: number) => {
+  const removeError = useCallback((
+    errorId: number,
+    firstTimeOut: number,
+    secondTimeOut: number,
+  ) => {
     setTimeout(() => {
       setNotificationList((prevState: Notification[]) => (
         prevState.map((error: Notification) => {
@@ -282,35 +285,21 @@ export const App: React.FC = () => {
 
       setTimeout(() => {
         setNotificationList((prevState: Notification[]) => (
-          prevState.filter((notification: Notification) => (
-            notification.id !== errorId
+          prevState.filter((error: Notification) => (
+            error.id !== errorId
           ))
         ));
-      }, 500);
-    }, 0);
-  }, [notificationList]);
+      }, secondTimeOut);
+    }, firstTimeOut);
+  }, []);
 
-  const removeErrorByDefault = useCallback(() => {
-    const errorId = notificationList[0].id;
+  const removeErrorByClick = useCallback((errorId: number) => {
+    removeError(errorId, 0, 500);
+  }, []);
 
-    setTimeout(() => {
-      setNotificationList((prevState: Notification[]) => (
-        prevState.map((error: Notification) => {
-          if (error.id !== errorId) {
-            return error;
-          }
-
-          return { ...error, hidden: true };
-        })
-      ));
-
-      setTimeout(() => {
-        setNotificationList(prevState => (
-          prevState.filter((error) => error.id !== errorId)
-        ));
-      }, 500);
-    }, 2500);
-  }, [notificationList]);
+  const removeErrorByDefault = useCallback((errorId: number) => {
+    removeError(errorId, 2500, 500);
+  }, []);
 
   const setActiveTodos = useCallback(() => {
     setSortType(FilterType.Active);
@@ -337,7 +326,7 @@ export const App: React.FC = () => {
   }
 
   if (notificationList.length > 0) {
-    removeErrorByDefault();
+    removeErrorByDefault(notificationList[0].id);
   }
 
   return (
@@ -348,8 +337,6 @@ export const App: React.FC = () => {
       sortType,
       isLoaded,
       loadingIds,
-      creating,
-      creatingTodo,
       onSubmit,
       onDelete,
       onComplete,

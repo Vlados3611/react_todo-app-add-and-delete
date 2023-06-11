@@ -9,8 +9,6 @@ type State = {
   sortType: FilterType;
   isLoaded: boolean;
   loadingIds: number[];
-  creating: boolean;
-  creatingTodo: string;
   onSubmit: (title: string) => void;
   onDelete: (todoId: number) => void;
   onEdit: (todoId: number, title: string) => void;
@@ -32,8 +30,6 @@ export const TodoContext = createContext<State>({
   sortType: FilterType.All,
   isLoaded: false,
   loadingIds: [],
-  creating: false,
-  creatingTodo: '',
   onSubmit: async () => {},
   onDelete: async () => {},
   onComplete: () => {},
