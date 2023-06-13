@@ -31,7 +31,7 @@ export const App: React.FC = () => {
   const [todos, setTodos] = useState<Todo[]>([]);
   const [sortType, setSortType] = useState<FilterType>(FilterType.All);
   const [notificationList, setNotificationList] = useState<Notification[]>([]);
-  const [isLoaded, setIsLoaded] = useState<boolean>(true);
+  const [isLoaded, setIsLoaded] = useState<boolean>(false);
   const [tempTodo, setTempTodo] = useState<Todo | null>(null);
   const [loadingIds, setLoadingIds] = useState<number[]>([]);
 
@@ -64,7 +64,7 @@ export const App: React.FC = () => {
   };
 
   const onSubmit = useCallback(async (title: string) => {
-    setIsLoaded(false);
+    setIsLoaded(true);
     try {
       const newTodo = {
         id: 0,
@@ -84,16 +84,14 @@ export const App: React.FC = () => {
       setTodos(
         (prevState: Todo[]) => [...prevState, todo],
       );
-
-      setIsLoaded(true);
     } catch {
-      setIsLoaded(false);
-      throw new Error();
+      setErrorToList('Can`t add todo');
     } finally {
       setTempTodo(null);
       setLoadingIds([]);
+      setIsLoaded(false);
     }
-  }, [todos]);
+  }, [todos, notificationList]);
 
   const onDelete = useCallback(
     async (todoId: number) => {
@@ -112,7 +110,7 @@ export const App: React.FC = () => {
       } finally {
         setLoadingIds([]);
       }
-    }, [todos],
+    }, [todos, notificationList],
   );
 
   const onComplete = useCallback((
@@ -173,7 +171,7 @@ export const App: React.FC = () => {
     } finally {
       setLoadingIds([]);
     }
-  }, []);
+  }, [notificationList]);
 
   const changeAllTodos = useCallback(async (
     todoList: Todo[],
@@ -247,7 +245,7 @@ export const App: React.FC = () => {
     } finally {
       setLoadingIds([]);
     }
-  }, []);
+  }, [notificationList]);
 
   const getFilteredTodos = useCallback((
     todosList: Todo[],
@@ -291,7 +289,7 @@ export const App: React.FC = () => {
         ));
       }, secondTimeOut);
     }, firstTimeOut);
-  }, []);
+  }, [notificationList]);
 
   const removeErrorByClick = useCallback((errorId: number) => {
     removeError(errorId, 0, 500);

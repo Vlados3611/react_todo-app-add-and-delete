@@ -42,7 +42,7 @@ export const TodoSearch: React.FC = () => {
         onChange={(event) => {
           setInputTitle(event.target.value);
         }}
-        disabled={!isLoaded}
+        disabled={isLoaded}
       />
     </form>
   );

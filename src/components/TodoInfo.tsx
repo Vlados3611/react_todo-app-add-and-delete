@@ -89,7 +89,7 @@ export const TodoInfo: React.FC<Props> = React.memo(
           setEdited(false);
           setInputTitle('');
         } catch {
-          throw Error('Can`t update current todo');
+          setErrorToList('Can`t update current todo');
         } finally {
           setLoadingIds([]);
         }
