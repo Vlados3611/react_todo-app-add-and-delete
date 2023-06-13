@@ -79,10 +79,10 @@ export const App: React.FC = () => {
 
       setLoadingIds(prevState => [...prevState, newTodo.id]);
 
-      const todo = await setTodosToServer(newTodo);
+      const addedTodo = await setTodosToServer(newTodo);
 
       setTodos(
-        (prevState: Todo[]) => [...prevState, todo],
+        (prevState: Todo[]) => [...prevState, addedTodo],
       );
     } catch {
       setErrorToList('Can`t add todo');
