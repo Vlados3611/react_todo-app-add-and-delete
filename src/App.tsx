@@ -157,7 +157,9 @@ export const App: React.FC = () => {
         (todo: Todo) => todo.id,
       );
 
-      setLoadingIds(foundTodosId);
+      setLoadingIds((prevState: number[]) => (
+        prevState.concat(foundTodosId)
+      ));
 
       await Promise.all(todosCompleted.map(
         (todo: Todo) => deleteTodoFromServer(todo.id),
@@ -185,22 +187,24 @@ export const App: React.FC = () => {
     );
 
     try {
-      setLoadingIds(
-        isAllCompleted
-          ? (
-            filteredTodos.map((todo: Todo) => (
-              todo.id
-            ))
-          ) : (
-            todoList
-              .filter((todo: Todo) => (
-                !todo.completed
-              ))
-              .map((todo: Todo) => (
+      setLoadingIds((prevState: number[]) => (
+        prevState.concat(
+          isAllCompleted
+            ? (
+              filteredTodos.map((todo: Todo) => (
                 todo.id
               ))
-          ),
-      );
+            ) : (
+              todoList
+                .filter((todo: Todo) => (
+                  !todo.completed
+                ))
+                .map((todo: Todo) => (
+                  todo.id
+                ))
+            ),
+        )
+      ));
 
       await Promise.all(
         isAllCompleted
